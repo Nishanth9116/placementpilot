@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlacementPilot | Local AI Placement & Drive Assistant</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%2232%22%20height=%2232%22><text y=%2226%22 font-size=%2226%22>🎓</text></svg>">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">🎓</div>
+        <div>
+          <div class="brand-title">PlacementPilot</div>
+          <span class="brand-badge">Local MCP</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Overview</div>
+        <a class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">Dashboard</span>
+        </a>
+        <a class="nav-item" data-view="applications">
+          <span class="nav-icon">📑</span>
+          <span class="nav-text">Applications</span>
+        </a>
+        <a class="nav-item" data-view="calendar">
+          <span class="nav-icon">📅</span>
+          <span class="nav-text">Interview Calendar</span>
+        </a>
+
+        <div class="nav-section-label">Drives & Candidates</div>
+        <a class="nav-item" data-view="companies">
+          <span class="nav-icon">🏢</span>
+          <span class="nav-text">Companies & Drives</span>
+        </a>
+        <a class="nav-item" data-view="profile">
+          <span class="nav-icon">👤</span>
+          <span class="nav-text">Student Profile</span>
+        </a>
+
+        <div class="nav-section-label">AI Prep Intelligence</div>
+        <a class="nav-item" data-view="skillgap">
+          <span class="nav-icon">🎯</span>
+          <span class="nav-text">AI Skill Gap Analysis</span>
+        </a>
+        <a class="nav-item" data-view="prep">
+          <span class="nav-icon">💡</span>
+          <span class="nav-text">Interview Preparation</span>
+        </a>
+        <a class="nav-item" data-view="email">
+          <span class="nav-icon">✉️</span>
+          <span class="nav-text">Follow-up Emailer</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="db-status">
+          <span class="status-dot"></span>
+          <span>SQLite Local WAL • Active</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 class="page-title" id="page-title">Dashboard Overview</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="student-picker-wrapper">
+            <span>Active Student:</span>
+            <select id="global-student-select" class="student-select" title="Active Student Profile">
+              <option value="">Loading students...</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-quick-apply">+ Apply to Drive</button>
+          <button class="btn btn-secondary btn-sm" id="btn-quick-add-job">+ New Job Drive</button>
+        </div>
+      </header>
+
+      <!-- Views Container -->
+      <main class="content-area">
+        
+        <!-- =============================================================== -->
+        <!-- VIEW 1: DASHBOARD OVERVIEW -->
+        <!-- =============================================================== -->
+        <section class="view-section active" id="view-dashboard">
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">Total Applications</span>
+                <div class="metric-icon-box" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">📝</div>
+              </div>
+              <div class="metric-value" id="stat-total-apps">0</div>
+              <div class="metric-subtext">Across campus recruitment drives</div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">Interviews Scheduled</span>
+                <div class="metric-icon-box" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6;">⏱️</div>
+              </div>
+              <div class="metric-value" id="stat-interviews">0</div>
+              <div class="metric-subtext">Upcoming rounds pending evaluation</div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">Job Offers Secured</span>
+                <div class="metric-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">🎉</div>
+              </div>
+              <div class="metric-value" id="stat-offers">0</div>
+              <div class="metric-subtext">Received placement offers</div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">Active Drives</span>
+                <div class="metric-icon-box" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">🚀</div>
+              </div>
+              <div class="metric-value" id="stat-active-drives">0</div>
+              <div class="metric-subtext">Open recruitment drives</div>
+            </div>
+          </div>
+
+          <!-- Active Drives & Pipeline row -->
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+            <div class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">🔥 Featured Campus Recruitment Drives</h2>
+                <button class="btn btn-secondary btn-sm" onclick="navigateTo('companies')">View All</button>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Company</th>
+                      <th>Role</th>
+                      <th>CTC</th>
+                      <th>Min CGPA</th>
+                      <th>Eligibility</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-drives-body">
+                    <tr><td colspan="6" style="text-align: center;">Loading campus drives...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Student Snapshot Card -->
+            <div class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">👤 Candidate Summary</h2>
+              </div>
+              <div id="dashboard-student-card">
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Select a student from top right to view details.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 2: APPLICATIONS PIPELINE -->
+        <!-- =============================================================== -->
+        <section class="view-section" id="view-applications">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">📑 Student Application Pipeline</h2>
+              <div class="panel-actions">
+                <select id="filter-app-status" class="form-select" style="width: auto;">
+                  <option value="">All Statuses</option>
+                  <option value="applied">Applied</option>
+                  <option value="shortlisted">Shortlisted</option>
+                  <option value="oa_cleared">OA Cleared</option>
+                  <option value="interview_scheduled">Interview Scheduled</option>
+                  <option value="offered">Offered</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="openApplyModal()">+ New Application</button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Candidate</th>
+                    <th>Company & Role</th>
+                    <th>CTC</th>
+                    <th>Status</th>
+                    <th>Current Stage</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="applications-table-body">
+                  <tr><td colspan="6" style="text-align: center;">Loading applications...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 3: COMPANIES & JOB DRIVES -->
+        <!-- =============================================================== -->
+        <section class="view-section" id="view-companies">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">🏢 Campus Hiring Drives</h2>
+              <div class="panel-actions">
+                <button class="btn btn-secondary btn-sm" onclick="openAddCompanyModal()">+ Register Company</button>
+                <button class="btn btn-primary btn-sm" onclick="openAddJobModal()">+ Post Job Opening</button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Designation</th>
+                    <th>CTC Package</th>
+                    <th>Eligibility Cutoffs</th>
+                    <th>Required Skills</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="jobs-table-body">
+                  <tr><td colspan="7" style="text-align: center;">Loading job drives...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 4: INTERVIEW CALENDAR & SCHEDULES -->
+        <!-- =============================================================== -->
+        <section class="view-section" id="view-calendar">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">📅 Upcoming Scheduled Interviews & Assessments</h2>
+              <div class="panel-actions">
+                <span class="badge badge-interview_scheduled" id="calendar-count-badge">0 Pending</span>
+              </div>
+            </div>
+
+            <div id="calendar-list" style="display: flex; flex-direction: column; gap: 1rem;">
+              <p style="color: var(--text-muted);">Loading upcoming interviews...</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 5: STUDENT PROFILE & SKILLS -->
+        <!-- =============================================================== -->
+        <section class="view-section" id="view-profile">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+            <!-- Profile Editor -->
+            <div class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">👤 Edit Candidate Profile</h2>
+                <button class="btn btn-secondary btn-sm" onclick="resetStudentForm()">+ New Candidate</button>
+              </div>
+
+              <form id="student-profile-form">
+                <input type="hidden" id="prof-id">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="prof-usn">USN / Roll Number *</label>
+                    <input type="text" id="prof-usn" class="form-input" placeholder="e.g. 1PI21CS001" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="prof-name">Full Name *</label>
+                    <input type="text" id="prof-name" class="form-input" placeholder="e.g. Aarav Sharma" required>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="prof-email">College Email *</label>
+                    <input type="email" id="prof-email" class="form-input" placeholder="aarav@example.edu" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="prof-branch">Department / Branch *</label>
+                    <select id="prof-branch" class="form-select" required>
+                      <option value="CSE">Computer Science & Engineering (CSE)</option>
+                      <option value="ISE">Information Science & Engineering (ISE)</option>
+                      <option value="ECE">Electronics & Communication (ECE)</option>
+                      <option value="EEE">Electrical & Electronics (EEE)</option>
+                      <option value="MECH">Mechanical Engineering (MECH)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="prof-cgpa">Current CGPA (0.0 - 10.0) *</label>
+                    <input type="number" id="prof-cgpa" class="form-input" step="0.01" min="0" max="10" placeholder="e.g. 8.75" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="prof-year">Graduation Year *</label>
+                    <input type="number" id="prof-year" class="form-input" value="2025" min="2020" max="2030" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Technical Skills (Press Enter to add)</label>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="skill-input" class="form-input" placeholder="e.g. Python, Docker, SQL">
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-add-skill">Add</button>
+                  </div>
+                  <div id="profile-skills-chips" class="tag-container"></div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="prof-resume">Local Resume Path</label>
+                  <input type="text" id="prof-resume" class="form-input" placeholder="/resumes/Aarav_Resume.pdf">
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+                  <button type="submit" class="btn btn-primary" id="btn-save-profile">Save Candidate Profile</button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Profile Summary & Placement Record -->
+            <div class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">📈 Placement Status & Readiness</h2>
+              </div>
+              <div id="profile-readiness-stats">
+                <p style="color: var(--text-muted);">Select or save a student to view metrics.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 6: AI SKILL GAP ANALYSIS -->
+        <!-- =============================================================== -->
+        <section class="view-section" id="view-skillgap">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">🎯 AI Placement Match & Skill Gap Diagnostics</h2>
+            </div>
+            
+            <div class="form-row" style="margin-bottom: 1.5rem;">
+              <div class="form-group">
+                <label class="form-label">Candidate</label>
+                <select id="gap-student-select" class="form-select"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Target Campus Drive</label>
+                <select id="gap-job-select" class="form-select"></select>
+              </div>
+              <div class="form-group" style="display: flex; align-items: flex-end;">
+                <button class="btn btn-primary" id="btn-run-skillgap" style="width: 100%;">⚡ Run Diagnostic</button>
+              </div>
+            </div>
+
+            <div id="skillgap-results" style="display: none;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <div class="panel" style="background: var(--bg-surface);">
+                  <h3 style="font-size: 1rem; margin-bottom: 1rem;">Eligibility Assessment</h3>
+                  <div id="gap-eligibility-card"></div>
+                </div>
+
+                <div class="panel" style="background: var(--bg-surface);">
+                  <h3 style="font-size: 1rem; margin-bottom: 1rem;">Skill Overlap Breakdown</h3>
+                  <div id="gap-skills-card"></div>
+                </div>
+              </div>
+
+              <div class="panel" style="background: var(--bg-surface);">
+                <h3 style="font-size: 1rem; margin-bottom: 1rem;">📚 Recommended Curated Prep Questions</h3>
+                <div id="gap-questions-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 7: INTERVIEW PREPARATION & QUESTIONS -->
+        <!-- =============================================================== -->
+        <section class="view-section" id="view-prep">
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+            <!-- Question Bank Browser -->
+            <div class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">💡 Placement Question Bank</h2>
+                <div class="panel-actions">
+                  <select id="filter-q-category" class="form-select" style="width: auto;">
+                    <option value="">All Categories</option>
+                    <option value="DSA">DSA</option>
+                    <option value="Core_CS">Core CS</option>
+                    <option value="System_Design">System Design</option>
+                    <option value="Database">Database</option>
+                    <option value="Behavioral_HR">Behavioral HR</option>
+                  </select>
+                </div>
+              </div>
+
+              <div id="questions-container" style="display: flex; flex-direction: column; gap: 1rem;">
+                <p style="color: var(--text-muted);">Loading questions...</p>
+              </div>
+            </div>
+
+            <!-- Mock Interview Evaluator -->
+            <div class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">🎙️ Mock Evaluation Log</h2>
+              </div>
+              <form id="mock-interview-form">
+                <div class="form-group">
+                  <label class="form-label" for="mock-student-id">Student *</label>
+                  <select id="mock-student-id" class="form-select" required></select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="mock-topic">Topic / Subject *</label>
+                  <input type="text" id="mock-topic" class="form-input" placeholder="e.g. Dynamic Programming & Trees" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="mock-score">Performance Score (0 - 100) *</label>
+                  <input type="number" id="mock-score" class="form-input" min="0" max="100" placeholder="e.g. 88" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="mock-feedback">Diagnostic Feedback *</label>
+                  <textarea id="mock-feedback" class="form-textarea" rows="3" placeholder="Candidate showed great complexity analysis..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Record Mock Score</button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 8: FOLLOW-UP EMAIL GENERATOR -->
+        <!-- =============================================================== -->
+        <section class="view-section" id="view-email">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">✉️ Post-Interview Follow-Up Email Generator</h2>
+            </div>
+            
+            <div class="form-row" style="margin-bottom: 1.5rem;">
+              <div class="form-group">
+                <label class="form-label" for="email-app-select">Active Application</label>
+                <select id="email-app-select" class="form-select"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="email-round-select">Completed Interview Round</label>
+                <select id="email-round-select" class="form-select"></select>
+              </div>
+              <div class="form-group" style="display: flex; align-items: flex-end;">
+                <button class="btn btn-primary" id="btn-generate-email" style="width: 100%;">✨ Generate Email</button>
+              </div>
+            </div>
+
+            <div id="email-output-container" style="display: none;">
+              <div class="form-group">
+                <label class="form-label" for="email-subject">Subject Line</label>
+                <input type="text" id="email-subject" class="form-input" readonly>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="email-body">Email Body Draft</label>
+                <textarea id="email-body" class="form-textarea" rows="10"></textarea>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" id="btn-copy-email">📋 Copy to Clipboard</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODALS -->
+  <!-- ===================================================================== -->
+
+  <!-- Apply to Job Modal -->
+  <dialog id="modal-apply" class="custom-modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Apply for Campus Recruitment Drive</h3>
+      <button class="modal-close" onclick="closeModal('modal-apply')">&times;</button>
+    </div>
+    <form id="form-apply">
+      <div class="form-group">
+        <label class="form-label" for="apply-student">Select Candidate *</label>
+        <select id="apply-student" class="form-select" required></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="apply-job">Select Drive Opening *</label>
+        <select id="apply-job" class="form-select" required></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="apply-notes">Referral or Application Statement</label>
+        <textarea id="apply-notes" class="form-textarea" rows="3" placeholder="Brief note on candidate fit..."></textarea>
+      </div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+        <input type="checkbox" id="apply-enforce" checked>
+        <label for="apply-enforce" style="font-size: 0.85rem; color: var(--text-muted);">Enforce minimum CGPA and Branch eligibility checks</label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-apply')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit Application</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Add Job Opening Modal -->
+  <dialog id="modal-add-job" class="custom-modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Create Campus Recruitment Drive</h3>
+      <button class="modal-close" onclick="closeModal('modal-add-job')">&times;</button>
+    </div>
+    <form id="form-add-job">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="job-comp-name">Company Name *</label>
+          <input type="text" id="job-comp-name" class="form-input" placeholder="e.g. Oracle" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="job-role">Role Designation *</label>
+          <input type="text" id="job-role" class="form-input" placeholder="e.g. Member of Technical Staff" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="job-ctc">CTC in LPA *</label>
+          <input type="number" id="job-ctc" class="form-input" step="0.1" placeholder="e.g. 21.5" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="job-cgpa">Min CGPA Cutoff (0 - 10)</label>
+          <input type="number" id="job-cgpa" class="form-input" step="0.1" min="0" max="10" value="7.5">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job-branches">Eligible Branches (comma-separated)</label>
+        <input type="text" id="job-branches" class="form-input" placeholder="e.g. CSE, ISE, ECE" value="CSE, ISE">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job-skills">Required Skills (comma-separated)</label>
+        <input type="text" id="job-skills" class="form-input" placeholder="e.g. Java, Spring Boot, SQL, Docker" value="Java, SQL">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="job-location">Location</label>
+          <input type="text" id="job-location" class="form-input" value="Bangalore">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="job-deadline">Deadline</label>
+          <input type="date" id="job-deadline" class="form-input">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job-desc">Job Description Overview</label>
+        <textarea id="job-desc" class="form-textarea" rows="2" placeholder="Responsibilities and team scope..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-job')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Publish Drive</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Add Company Modal -->
+  <dialog id="modal-add-comp" class="custom-modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Register Hiring Organization</h3>
+      <button class="modal-close" onclick="closeModal('modal-add-comp')">&times;</button>
+    </div>
+    <form id="form-add-comp">
+      <div class="form-group">
+        <label class="form-label" for="comp-name">Company Name *</label>
+        <input type="text" id="comp-name" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="comp-web">Careers Website</label>
+        <input type="url" id="comp-web" class="form-input" placeholder="https://careers.example.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="comp-ind">Industry Domain</label>
+        <input type="text" id="comp-ind" class="form-input" value="Technology">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="comp-desc">Company Description</label>
+        <textarea id="comp-desc" class="form-textarea" rows="2"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-comp')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Company</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Schedule Round Modal -->
+  <dialog id="modal-schedule-round" class="custom-modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Schedule Interview Round</h3>
+      <button class="modal-close" onclick="closeModal('modal-schedule-round')">&times;</button>
+    </div>
+    <form id="form-schedule-round">
+      <input type="hidden" id="sched-app-id">
+      <div class="form-group">
+        <label class="form-label" for="sched-type">Interview Round Type *</label>
+        <select id="sched-type" class="form-select" required>
+          <option value="Online Assessment">Online Assessment (Coding / MCQ)</option>
+          <option value="Technical Interview 1">Technical Interview 1 (DSA & Problem Solving)</option>
+          <option value="Technical Interview 2">Technical Interview 2 (System Design & Core CS)</option>
+          <option value="Managerial Round">Managerial & Fitment Round</option>
+          <option value="HR Round">HR & Culture Fit Round</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sched-date">Scheduled Date & Time</label>
+        <input type="datetime-local" id="sched-date" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sched-notes">Interviewer Instructions / Meeting Link</label>
+        <textarea id="sched-notes" class="form-textarea" rows="2" placeholder="e.g. Google Meet link or assessment portal URL..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-schedule-round')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Schedule Round</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Record Round Outcome Modal -->
+  <dialog id="modal-record-outcome" class="custom-modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Record Interview Outcome</h3>
+      <button class="modal-close" onclick="closeModal('modal-record-outcome')">&times;</button>
+    </div>
+    <form id="form-record-outcome">
+      <input type="hidden" id="outcome-round-id">
+      <div class="form-group">
+        <label class="form-label" for="outcome-status">Outcome Verdict *</label>
+        <select id="outcome-status" class="form-select" required>
+          <option value="cleared">Cleared (Proceed to Next Round)</option>
+          <option value="failed">Failed (Reject Application)</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="outcome-feedback">Evaluation Feedback *</label>
+        <textarea id="outcome-feedback" class="form-textarea" rows="3" placeholder="Performance notes on algorithm efficiency, code quality, or behavioral clarity..." required></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-record-outcome')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Record Outcome</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- View Application Rounds Modal -->
+  <dialog id="modal-view-rounds" class="custom-modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="view-rounds-title">Application Interview History</h3>
+      <button class="modal-close" onclick="closeModal('modal-view-rounds')">&times;</button>
+    </div>
+    <div id="rounds-timeline-content" style="max-height: 400px; overflow-y: auto;">
+      <p style="color: var(--text-muted);">Loading round history...</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeModal('modal-view-rounds')">Close</button>
+    </div>
+  </dialog>
+
+  <!-- AI Job Analysis Modal -->
+  <dialog id="modal-job-analysis" class="custom-modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="analysis-job-title">AI Job Drive Breakdown</h3>
+      <button class="modal-close" onclick="closeModal('modal-job-analysis')">&times;</button>
+    </div>
+    <div id="analysis-content" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; max-height: 400px; overflow-y: auto; background: var(--bg-surface); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+      Loading AI analysis prompt...
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeModal('modal-job-analysis')">Close</button>
+    </div>
+  </dialog>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Application Logic -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
+

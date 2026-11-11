@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "placementpilot": {
+      "command": "D:\\placementpilot\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "src.mcp_server.server"
+      ],
+      "cwd": "D:\\placementpilot",
+      "env": {
+        "DATABASE_PATH": "D:\\placementpilot\\data\\placementpilot.db",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+
