@@ -3,13 +3,25 @@
 
 PRAGMA foreign_keys = ON;
 
+-- 0. College Academic Departments Table
+CREATE TABLE IF NOT EXISTS departments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT UNIQUE NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 1. Students / Candidates Table
 CREATE TABLE IF NOT EXISTS students (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     usn TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    phone TEXT,
     branch TEXT NOT NULL,
+    department TEXT,
+    year_of_study TEXT,
     cgpa REAL NOT NULL CHECK (cgpa >= 0.0 AND cgpa <= 10.0),
     graduation_year INTEGER NOT NULL,
     skills TEXT NOT NULL DEFAULT '[]', -- JSON string array of skills

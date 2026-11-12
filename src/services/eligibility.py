@@ -33,13 +33,64 @@ class EligibilityService:
         if not cgpa_ok:
             reasons.append(f"CGPA {student_cgpa:.2f} is below the minimum requirement of {min_cgpa:.2f}")
 
-        # 2. Branch Check
-        student_branch = str(student.get("branch", "")).upper()
-        allowed_branches = [b.upper() for b in job.get("allowed_branches", [])]
-        branch_ok = (not allowed_branches) or (student_branch in allowed_branches)
+        # 2. Branch & Department Check
+        student_branch = str(student.get("branch", "")).strip().upper()
+        student_dept = str(student.get("department", "") or student.get("branch", "")).strip().upper()
+        allowed_branches = [str(b).strip().upper() for b in job.get("allowed_branches", [])]
+
+        # Wildcard or empty list signifies open to ALL departments
+        allows_all = (
+            not allowed_branches
+            or any(w in allowed_branches for w in ["ALL", "ANY", "ALL DEPARTMENTS", "ALL BRANCHES", "*"])
+        )
+
+        if allows_all:
+            branch_ok = True
+        else:
+            aliases = {
+                "CSE": "COMPUTER SCIENCE",
+                "CS": "COMPUTER SCIENCE",
+                "IT": "INFORMATION TECHNOLOGY",
+                "ISE": "INFORMATION TECHNOLOGY",
+                "IS": "INFORMATION TECHNOLOGY",
+                "MCA": "COMPUTER APPLICATIONS",
+                "CA": "COMPUTER APPLICATIONS",
+                "BCA": "COMPUTER APPLICATIONS",
+                "COMMERCE": "COMMERCE",
+                "B.COM": "COMMERCE",
+                "BCOM": "COMMERCE",
+                "BBA": "BUSINESS ADMINISTRATION",
+                "MBA": "BUSINESS ADMINISTRATION",
+                "MATH": "MATHEMATICS",
+                "MATHS": "MATHEMATICS",
+                "PHYSICS": "PHYSICS",
+                "PHY": "PHYSICS",
+                "CHEMISTRY": "CHEMISTRY",
+                "CHEM": "CHEMISTRY",
+                "MECH": "MECHANICAL ENGINEERING",
+                "ECE": "ELECTRONICS & COMMUNICATION",
+                "EEE": "ELECTRICAL & ELECTRONICS",
+                "ISE": "INFORMATION SCIENCE",
+            }
+
+            def match_term(cand: str, allowed: str) -> bool:
+                if not cand or not allowed:
+                    return False
+                if cand == allowed:
+                    return True
+                c_alias = aliases.get(cand, cand)
+                a_alias = aliases.get(allowed, allowed)
+                return c_alias == a_alias or allowed in c_alias or c_alias in allowed
+
+            branch_ok = any(
+                match_term(student_branch, b) or match_term(student_dept, b)
+                for b in allowed_branches
+            )
+
         if not branch_ok:
+            disp_dept = student.get("branch") or student.get("department") or "Unknown"
             reasons.append(
-                f"Branch '{student_branch}' is not in allowed branches: {', '.join(allowed_branches)}"
+                f"Branch '{disp_dept}' is not in allowed branches or eligible departments: {', '.join(job.get('allowed_branches', []))}"
             )
 
         # 3. Skills Analysis

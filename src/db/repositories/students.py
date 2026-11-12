@@ -18,19 +18,41 @@ class StudentRepository:
         email: str,
         branch: str,
         cgpa: float,
-        graduation_year: int,
+        graduation_year: int = 2025,
         skills: Optional[List[str]] = None,
         resume_path: Optional[str] = None,
+        phone: Optional[str] = None,
+        department: Optional[str] = None,
+        year_of_study: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Insert a new student profile."""
         skills_json = json.dumps(skills or [])
+        clean_dept = (department or branch).strip()
+        clean_branch = (branch or department).strip().upper()
+        clean_year_study = str(year_of_study or graduation_year)
+
         cursor = self.conn.cursor()
         cursor.execute(
             """
-            INSERT INTO students (usn, name, email, branch, cgpa, graduation_year, skills, resume_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            INSERT INTO students (
+                usn, name, email, phone, branch, department, year_of_study,
+                cgpa, graduation_year, skills, resume_path
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
-            (usn, name, email, branch.upper(), cgpa, graduation_year, skills_json, resume_path),
+            (
+                usn.strip(),
+                name.strip(),
+                email.strip(),
+                phone.strip() if phone else None,
+                clean_branch,
+                clean_dept,
+                clean_year_study,
+                cgpa,
+                graduation_year,
+                skills_json,
+                resume_path,
+            ),
         )
         student_id = cursor.lastrowid
         return self.get_by_id(student_id)  # type: ignore
@@ -45,24 +67,47 @@ class StudentRepository:
     def get_by_usn(self, usn: str) -> Optional[Dict[str, Any]]:
         """Fetch a student by university roll number (USN)."""
         cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM students WHERE usn = ?;", (usn,))
+        cursor.execute("SELECT * FROM students WHERE LOWER(usn) = LOWER(?);", (usn.strip(),))
+        row = cursor.fetchone()
+        return self._format_row(row) if row else None
+
+    def get_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Fetch a student by email address."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM students WHERE LOWER(email) = LOWER(?);", (email.strip(),))
+        row = cursor.fetchone()
+        return self._format_row(row) if row else None
+
+    def authenticate(self, identifier: str) -> Optional[Dict[str, Any]]:
+        """Find a student by either USN/Register Number or Email."""
+        clean_id = identifier.strip()
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM students 
+            WHERE LOWER(usn) = LOWER(?) OR LOWER(email) = LOWER(?);
+            """,
+            (clean_id, clean_id),
+        )
         row = cursor.fetchone()
         return self._format_row(row) if row else None
 
     def list_all(
         self,
         branch: Optional[str] = None,
+        department: Optional[str] = None,
         min_cgpa: Optional[float] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """List students with optional branch and CGPA filters."""
+        """List students with optional branch, department, and CGPA filters."""
         query = "SELECT * FROM students WHERE 1=1"
         params: List[Any] = []
 
-        if branch:
-            query += " AND branch = ?"
-            params.append(branch.upper())
+        target_dept = department or branch
+        if target_dept:
+            query += " AND (LOWER(branch) = LOWER(?) OR LOWER(department) = LOWER(?))"
+            params.extend([target_dept.strip(), target_dept.strip()])
         if min_cgpa is not None:
             query += " AND cgpa >= ?"
             params.append(min_cgpa)
@@ -79,7 +124,10 @@ class StudentRepository:
         student_id: int,
         name: Optional[str] = None,
         email: Optional[str] = None,
+        phone: Optional[str] = None,
         branch: Optional[str] = None,
+        department: Optional[str] = None,
+        year_of_study: Optional[str] = None,
         cgpa: Optional[float] = None,
         graduation_year: Optional[int] = None,
         skills: Optional[List[str]] = None,
@@ -91,13 +139,25 @@ class StudentRepository:
 
         if name is not None:
             updates.append("name = ?")
-            params.append(name)
+            params.append(name.strip())
         if email is not None:
             updates.append("email = ?")
-            params.append(email)
+            params.append(email.strip())
+        if phone is not None:
+            updates.append("phone = ?")
+            params.append(phone.strip())
         if branch is not None:
             updates.append("branch = ?")
-            params.append(branch.upper())
+            params.append(branch.strip().upper())
+        if department is not None:
+            updates.append("department = ?")
+            params.append(department.strip())
+            if branch is None:
+                updates.append("branch = ?")
+                params.append(department.strip().upper())
+        if year_of_study is not None:
+            updates.append("year_of_study = ?")
+            params.append(str(year_of_study))
         if cgpa is not None:
             updates.append("cgpa = ?")
             params.append(cgpa)
@@ -136,5 +196,10 @@ class StudentRepository:
                 data["skills"] = json.loads(data["skills"])
             except json.JSONDecodeError:
                 data["skills"] = []
+        # Ensure department defaults to branch if empty
+        if not data.get("department"):
+            data["department"] = data.get("branch", "")
+        # Ensure year_of_study defaults to graduation_year if empty
+        if not data.get("year_of_study") and data.get("graduation_year"):
+            data["year_of_study"] = str(data["graduation_year"])
         return data
-

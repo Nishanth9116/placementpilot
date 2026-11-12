@@ -25,6 +25,17 @@ async def serve_index(request):
 
 # REST API Routes
 routes = [
+    # Authentication & Session
+    Route("/api/auth/login", api.login_student, methods=["POST"]),
+    Route("/api/auth/register", api.register_student, methods=["POST"]),
+    Route("/api/auth/logout", api.logout_student, methods=["POST"]),
+    Route("/api/auth/me", api.get_current_student, methods=["GET"]),
+
+    # Departments (All College Departments)
+    Route("/api/departments", api.list_departments, methods=["GET"]),
+    Route("/api/departments", api.create_department, methods=["POST"]),
+    Route("/api/departments/{id:int}", api.delete_department, methods=["DELETE"]),
+
     # Dashboard & Overview
     Route("/api/overview", api.get_overview_stats, methods=["GET"]),
 

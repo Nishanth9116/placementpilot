@@ -1,11 +1,12 @@
 """Integration tests for PlacementPilot Web REST API endpoints."""
 
+import json
 import pytest
-from starlette.testclient import TestClient
+from starlette.routing import Match
 
 from config.settings import settings
 from src.db.init_db import initialize_database, seed_sample_data
-from src.web.app import app
+from src.web.app import routes
 
 
 @pytest.fixture(autouse=True)
@@ -17,10 +18,79 @@ def init_test_db(tmp_path, monkeypatch):
     seed_sample_data(test_db)
 
 
+class DirectTestClient:
+    """Local, in-memory ASGI test client avoiding Windows socketpair locks."""
+
+    def request(self, method: str, path: str, json: dict = None, params: dict = None, headers: dict = None):
+        query_str = ""
+        query_params = {}
+        if "?" in path:
+            path, query_str = path.split("?", 1)
+            for pair in query_str.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    query_params[k] = v
+        if params:
+            query_params.update(params)
+
+        scope = {"type": "http", "method": method.upper(), "path": path}
+        for r in routes:
+            if hasattr(r, "matches"):
+                match, child_scope = r.matches(scope)
+                if match == Match.FULL:
+                    path_params = child_scope.get("path_params", {})
+
+                    class MockRequest:
+                        def __init__(self):
+                            self.path_params = path_params
+                            self.query_params = query_params
+                            self.headers = headers or {}
+
+                        async def json(self):
+                            return json or {}
+
+                    coro = r.endpoint(MockRequest())
+                    try:
+                        res = coro.send(None)
+                    except StopIteration as e:
+                        res = e.value
+
+                    class ResponseWrapper:
+                        def __init__(self, raw):
+                            self.status_code = raw.status_code
+                            if hasattr(raw, "body"):
+                                self.text = raw.body.decode("utf-8")
+                            elif hasattr(raw, "path"):
+                                with open(raw.path, "r", encoding="utf-8") as f:
+                                    self.text = f.read()
+                            else:
+                                self.text = ""
+
+                        def json(self):
+                            return json_module.loads(self.text)
+
+                    import json as json_module
+                    return ResponseWrapper(res)
+
+        raise ValueError(f"No matching route for {method} {path}")
+
+    def get(self, path: str, **kwargs):
+        return self.request("GET", path, **kwargs)
+
+    def post(self, path: str, json: dict = None, **kwargs):
+        return self.request("POST", path, json=json, **kwargs)
+
+    def patch(self, path: str, json: dict = None, **kwargs):
+        return self.request("PATCH", path, json=json, **kwargs)
+
+    def delete(self, path: str, **kwargs):
+        return self.request("DELETE", path, **kwargs)
+
+
 @pytest.fixture
 def client():
-    """Starlette test client."""
-    return TestClient(app)
+    """Direct in-memory test client."""
+    return DirectTestClient()
 
 
 class TestWebAPIEndpoints:

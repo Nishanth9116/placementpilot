@@ -7,6 +7,9 @@
 const state = {
   currentView: "dashboard",
   activeStudentId: null,
+  currentUser: null,
+  token: null,
+  departments: [],
   students: [],
   companies: [],
   jobs: [],
@@ -23,7 +26,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupNavigation();
   setupGlobalActions();
   setupProfileSkillTags();
+  setupAuthEvents();
+  await loadDepartments();
   await refreshInitialData();
+  renderQuickLoginChips();
+
+  const isAuth = checkAuthSession();
+  if (isAuth) {
+    navigateTo(state.currentView || "dashboard");
+  } else {
+    navigateTo("login");
+  }
 });
 
 function setupNavigation() {
@@ -31,12 +44,18 @@ function setupNavigation() {
   navItems.forEach((item) => {
     item.addEventListener("click", () => {
       const view = item.getAttribute("data-view");
-      navigateTo(view);
+      if (view) navigateTo(view);
     });
   });
 }
 
 function navigateTo(viewName) {
+  // Navigation Guard: Require authentication for protected dashboard views
+  if (!state.token && viewName !== "login") {
+    showToast("Please sign in or register to access the dashboard.", "info");
+    viewName = "login";
+  }
+
   state.currentView = viewName;
 
   // Update navigation items
@@ -55,8 +74,23 @@ function navigateTo(viewName) {
   const activeSec = document.getElementById(`view-${viewName}`);
   if (activeSec) activeSec.classList.add("active");
 
+  // Show/Hide topbar actions based on login state
+  const studentPicker = document.getElementById("student-picker-container");
+  const quickApplyBtn = document.getElementById("btn-quick-apply");
+  const quickAddJobBtn = document.getElementById("btn-quick-add-job");
+  if (viewName === "login") {
+    if (studentPicker) studentPicker.style.display = "none";
+    if (quickApplyBtn) quickApplyBtn.style.display = "none";
+    if (quickAddJobBtn) quickAddJobBtn.style.display = "none";
+  } else {
+    if (studentPicker) studentPicker.style.display = "flex";
+    if (quickApplyBtn) quickApplyBtn.style.display = "inline-flex";
+    if (quickAddJobBtn) quickAddJobBtn.style.display = "inline-flex";
+  }
+
   // Update title
   const titles = {
+    login: "Candidate Portal • Sign In / Register",
     dashboard: "Dashboard Overview",
     applications: "Application Pipeline Management",
     calendar: "Upcoming Interview Calendar",
@@ -70,7 +104,9 @@ function navigateTo(viewName) {
   if (titleEl) titleEl.innerText = titles[viewName] || "PlacementPilot";
 
   // Trigger view data refresh
-  loadViewData(viewName);
+  if (viewName !== "login") {
+    loadViewData(viewName);
+  }
 }
 
 async function refreshInitialData() {
@@ -78,8 +114,11 @@ async function refreshInitialData() {
     loadStudents(),
     loadCompanies(),
     loadJobs(),
+    loadDepartments(),
   ]);
-  loadViewData(state.currentView);
+  if (state.currentView !== "login") {
+    loadViewData(state.currentView);
+  }
 }
 
 function loadViewData(viewName) {
@@ -118,9 +157,13 @@ function loadViewData(viewName) {
 
 async function apiRequest(endpoint, options = {}) {
   try {
+    const headers = { "Content-Type": "application/json", ...options.headers };
+    if (state.token) {
+      headers["Authorization"] = `Bearer ${state.token}`;
+    }
     const res = await fetch(endpoint, {
-      headers: { "Content-Type": "application/json", ...options.headers },
       ...options,
+      headers,
     });
     const json = await res.json();
     if (!res.ok) {
@@ -132,6 +175,312 @@ async function apiRequest(endpoint, options = {}) {
     showToast(err.message, "error");
     throw err;
   }
+}
+
+// =============================================================================
+// Authentication & Session Management
+// =============================================================================
+
+function checkAuthSession() {
+  const token = localStorage.getItem("placementpilot_token");
+  const storedUser = localStorage.getItem("placementpilot_user");
+
+  if (token && storedUser) {
+    try {
+      const user = JSON.parse(storedUser);
+      state.token = token;
+      state.currentUser = user;
+      state.activeStudentId = user.id;
+      updateHeaderUserBadge();
+      return true;
+    } catch (e) {
+      localStorage.removeItem("placementpilot_token");
+      localStorage.removeItem("placementpilot_user");
+    }
+  }
+  updateHeaderUserBadge();
+  return false;
+}
+
+function updateHeaderUserBadge() {
+  const badge = document.getElementById("topbar-user-badge");
+  const logoutBtn = document.getElementById("btn-topbar-logout");
+  const nameEl = document.getElementById("topbar-user-name");
+  const deptEl = document.getElementById("topbar-user-dept");
+
+  if (state.currentUser) {
+    if (badge) badge.style.display = "flex";
+    if (logoutBtn) logoutBtn.style.display = "inline-flex";
+    if (nameEl) nameEl.innerText = state.currentUser.name;
+    if (deptEl) deptEl.innerText = state.currentUser.department || state.currentUser.branch || "Candidate";
+  } else {
+    if (badge) badge.style.display = "none";
+    if (logoutBtn) logoutBtn.style.display = "none";
+  }
+}
+
+function setupAuthEvents() {
+  const tabSignIn = document.getElementById("tab-btn-signin");
+  const tabRegister = document.getElementById("tab-btn-register");
+  const formLogin = document.getElementById("form-login");
+  const formRegister = document.getElementById("form-register");
+
+  if (tabSignIn && tabRegister) {
+    tabSignIn.onclick = () => {
+      tabSignIn.classList.add("active");
+      tabRegister.classList.remove("active");
+      if (formLogin) formLogin.style.display = "block";
+      if (formRegister) formRegister.style.display = "none";
+    };
+    tabRegister.onclick = () => {
+      tabRegister.classList.add("active");
+      tabSignIn.classList.remove("active");
+      if (formLogin) formLogin.style.display = "none";
+      if (formRegister) formRegister.style.display = "block";
+    };
+  }
+
+  if (formLogin) {
+    formLogin.onsubmit = async (e) => {
+      e.preventDefault();
+      const identifier = document.getElementById("login-identifier").value.trim();
+      if (!identifier) return;
+
+      try {
+        const data = await apiRequest("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ identifier }),
+        });
+
+        localStorage.setItem("placementpilot_token", data.token);
+        localStorage.setItem("placementpilot_user", JSON.stringify(data.student));
+        state.token = data.token;
+        state.currentUser = data.student;
+        state.activeStudentId = data.student.id;
+
+        updateHeaderUserBadge();
+        showToast(`Welcome back, ${data.student.name}!`, "success");
+        await refreshInitialData();
+        navigateTo("dashboard");
+      } catch (err) {
+        // Handled
+      }
+    };
+  }
+
+  if (formRegister) {
+    formRegister.onsubmit = async (e) => {
+      e.preventDefault();
+      const skillsArr = document.getElementById("reg-skills").value.split(",").map(s => s.trim()).filter(Boolean);
+      const payload = {
+        name: document.getElementById("reg-name").value.trim(),
+        usn: document.getElementById("reg-usn").value.trim(),
+        email: document.getElementById("reg-email").value.trim(),
+        phone: document.getElementById("reg-phone").value.trim(),
+        department: document.getElementById("reg-dept").value.trim(),
+        year_of_study: document.getElementById("reg-year").value,
+        cgpa: parseFloat(document.getElementById("reg-cgpa").value),
+        skills: skillsArr,
+      };
+
+      try {
+        const data = await apiRequest("/api/auth/register", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+
+        localStorage.setItem("placementpilot_token", data.token);
+        localStorage.setItem("placementpilot_user", JSON.stringify(data.student));
+        state.token = data.token;
+        state.currentUser = data.student;
+        state.activeStudentId = data.student.id;
+
+        updateHeaderUserBadge();
+        showToast(`Registration successful! Welcome, ${data.student.name}.`, "success");
+        await refreshInitialData();
+        navigateTo("dashboard");
+      } catch (err) {
+        // Handled
+      }
+    };
+  }
+
+  const topbarLogout = document.getElementById("btn-topbar-logout");
+  const sidebarLogout = document.getElementById("sidebar-btn-logout");
+  const confirmLogout = document.getElementById("btn-confirm-logout");
+
+  if (topbarLogout) topbarLogout.onclick = () => openModal("modal-logout");
+  if (sidebarLogout) sidebarLogout.onclick = () => openModal("modal-logout");
+
+  if (confirmLogout) {
+    confirmLogout.onclick = async () => {
+      try {
+        await apiRequest("/api/auth/logout", { method: "POST" });
+      } catch (e) {}
+      localStorage.removeItem("placementpilot_token");
+      localStorage.removeItem("placementpilot_user");
+      state.token = null;
+      state.currentUser = null;
+      state.activeStudentId = null;
+      updateHeaderUserBadge();
+      closeModal("modal-logout");
+      showToast("Logged out successfully.", "info");
+      navigateTo("login");
+    };
+  }
+
+  // Admin Department Add Form
+  const deptForm = document.getElementById("form-add-department");
+  if (deptForm) {
+    deptForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("new-dept-name").value.trim();
+      const code = document.getElementById("new-dept-code").value.trim();
+      if (!name) return;
+
+      try {
+        await apiRequest("/api/departments", {
+          method: "POST",
+          body: JSON.stringify({ name, code }),
+        });
+        showToast(`Academic department '${name}' added!`, "success");
+        deptForm.reset();
+        await loadDepartments();
+      } catch (err) {
+        // Handled
+      }
+    };
+  }
+}
+
+function renderQuickLoginChips() {
+  const container = document.getElementById("quick-login-chips");
+  if (!container) return;
+
+  const demoProfiles = [
+    { name: "Aarav", dept: "CSE", usn: "1PI21CS001" },
+    { name: "Rahul", dept: "Commerce", usn: "1PI21CM012" },
+    { name: "Divya", dept: "BBA", usn: "1PI21BA024" },
+    { name: "Siddharth", dept: "Mathematics", usn: "1PI21MA009" },
+    { name: "Anjali", dept: "Physics", usn: "1PI21PH015" },
+    { name: "Sneha", dept: "IT", usn: "1PI21IS019" },
+  ];
+
+  container.innerHTML = demoProfiles.map(p => `
+    <button type="button" class="quick-demo-chip" onclick="quickLoginDemo('${p.usn}')">
+      <span>🎓</span>
+      <span>${p.name} (<strong>${p.dept}</strong>)</span>
+    </button>
+  `).join("");
+}
+
+function quickLoginDemo(usn) {
+  const input = document.getElementById("login-identifier");
+  if (input) {
+    input.value = usn;
+    const form = document.getElementById("form-login");
+    if (form) form.dispatchEvent(new Event("submit"));
+  }
+}
+
+async function loadDepartments() {
+  try {
+    const departments = await apiRequest("/api/departments");
+    state.departments = departments || [];
+
+    const regDept = document.getElementById("reg-dept");
+    if (regDept) {
+      regDept.innerHTML = state.departments.map(d => `
+        <option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${escapeHtml(d.code)})</option>
+      `).join("");
+    }
+
+    const profBranch = document.getElementById("prof-branch");
+    if (profBranch) {
+      profBranch.innerHTML = state.departments.map(d => `
+        <option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${escapeHtml(d.code)})</option>
+      `).join("");
+    }
+
+    const deptListContainer = document.getElementById("departments-list-container");
+    if (deptListContainer) {
+      deptListContainer.innerHTML = state.departments.map(d => `
+        <span class="dept-pill" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem;">
+          <strong>${escapeHtml(d.name)}</strong> (${escapeHtml(d.code)})
+        </span>
+      `).join("");
+    }
+  } catch (err) {
+    console.error("Failed to load departments:", err);
+  }
+}
+
+function openManageDeptsModal() {
+  openModal("modal-manage-depts");
+  loadDepartments();
+}
+
+function evaluateEligibilityLocal(student, job) {
+  if (!student || !job) return { isEligible: true, reasons: [] };
+  const reasons = [];
+
+  const studentCgpa = parseFloat(student.cgpa || 0.0);
+  const minCgpa = parseFloat(job.min_cgpa || 0.0);
+  if (studentCgpa < minCgpa) {
+    reasons.push(`CGPA ${studentCgpa.toFixed(2)} is below cutoff ${minCgpa.toFixed(2)}`);
+  }
+
+  const allowed = (job.allowed_branches || []).map(b => String(b).trim().toUpperCase());
+  const studentDept = String(student.department || student.branch || "").trim().toUpperCase();
+  const studentBranch = String(student.branch || "").trim().toUpperCase();
+
+  const allowsAll = allowed.length === 0 || allowed.some(a => ["ALL", "ANY", "ALL DEPARTMENTS", "ALL BRANCHES", "*"].includes(a));
+
+  if (!allowsAll) {
+    const aliasMap = {
+      "CSE": "COMPUTER SCIENCE",
+      "CS": "COMPUTER SCIENCE",
+      "IT": "INFORMATION TECHNOLOGY",
+      "MCA": "COMPUTER APPLICATIONS",
+      "CA": "COMPUTER APPLICATIONS",
+      "BCA": "COMPUTER APPLICATIONS",
+      "COMMERCE": "COMMERCE",
+      "B.COM": "COMMERCE",
+      "BCOM": "COMMERCE",
+      "BBA": "BUSINESS ADMINISTRATION",
+      "MBA": "BUSINESS ADMINISTRATION",
+      "MATH": "MATHEMATICS",
+      "MATHS": "MATHEMATICS",
+      "PHYSICS": "PHYSICS",
+      "CHEMISTRY": "CHEMISTRY",
+      "MECH": "MECHANICAL ENGINEERING",
+      "ECE": "ELECTRONICS & COMMUNICATION",
+      "EEE": "ELECTRICAL & ELECTRONICS",
+    };
+
+    function match(cand, target) {
+      if (!cand || !target) return false;
+      if (cand === target) return true;
+      const c = aliasMap[cand] || cand;
+      const t = aliasMap[target] || target;
+      return c === t || c.includes(t) || t.includes(c);
+    }
+
+    const matches = allowed.some(a => match(studentDept, a) || match(studentBranch, a));
+    if (!matches) {
+      const dispDept = student.department || student.branch || "Unknown";
+      reasons.push(`Department '${dispDept}' not eligible (Accepted: ${job.allowed_branches.join(", ")})`);
+    }
+  }
+
+  return {
+    isEligible: reasons.length === 0,
+    reasons,
+  };
+}
+
+function showIneligibilityAlert(roleTitle, reason) {
+  alert(`Eligibility Notice for "${roleTitle}":\n\n${reason}\n\nStudents meeting all criteria may apply.`);
 }
 
 // =============================================================================
@@ -367,37 +716,41 @@ async function loadJobsView() {
     state.jobs = jobs;
 
     if (!jobs || jobs.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim);">No job drives registered.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">No job drives registered.</td></tr>`;
       return;
     }
 
-    tableBody.innerHTML = jobs.map((job) => `
-      <tr>
-        <td><strong>${escapeHtml(job.company_name)}</strong></td>
-        <td>${escapeHtml(job.role_title)}</td>
-        <td><span style="color: var(--accent-emerald); font-weight: 600;">₹${job.ctc_lpa} LPA</span></td>
-        <td>
-          <div>Min CGPA: <strong>${job.min_cgpa.toFixed(1)}</strong></div>
-          <div style="font-size: 0.75rem; color: var(--text-dim);">${formatBranches(job.allowed_branches)}</div>
-        </td>
-        <td>
-          <div class="tag-container">
-            ${(job.required_skills || []).slice(0, 3).map(s => `<span class="tag-chip">${escapeHtml(s)}</span>`).join("")}
-            ${(job.required_skills || []).length > 3 ? `<span class="tag-chip">+${job.required_skills.length - 3}</span>` : ""}
-          </div>
-        </td>
-        <td><span class="badge badge-${job.status}">${job.status}</span></td>
-        <td>
-          <div style="display: flex; gap: 0.35rem;">
-            <button class="btn btn-primary btn-sm" onclick="quickApply(${job.id})">Apply</button>
-            <button class="btn btn-secondary btn-sm" onclick="viewJobAnalysis(${job.id}, '${escapeHtml(job.role_title)}')">AI Analysis</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteJob(${job.id})">Delete</button>
-          </div>
-        </td>
-      </tr>
-    `).join("");
+    const currentStudent = state.currentUser || state.students.find(s => s.id === state.activeStudentId);
+
+    tableBody.innerHTML = jobs.map((job) => {
+      const elig = evaluateEligibilityLocal(currentStudent, job);
+      const allowedDeptsFormatted = formatBranches(job.allowed_branches);
+
+      const eligBadge = elig.isEligible
+        ? `<span class="badge badge-eligible" style="font-weight: 600;" title="You meet all department and CGPA criteria">✓ Eligible</span>`
+        : `<span class="badge badge-ineligible" style="font-weight: 600; cursor: pointer;" title="${escapeHtml(elig.reasons.join('; '))}" onclick="showIneligibilityAlert('${escapeHtml(job.role_title)}', '${escapeHtml(elig.reasons.join('. '))}')">✕ Not Eligible</span>`;
+
+      return `
+        <tr>
+          <td><strong>${escapeHtml(job.company_name)}</strong></td>
+          <td>${escapeHtml(job.role_title)}</td>
+          <td><span style="color: var(--accent-emerald); font-weight: 600;">₹${job.ctc_lpa} LPA</span></td>
+          <td>${allowedDeptsFormatted}</td>
+          <td>Min <strong>${job.min_cgpa.toFixed(1)}</strong></td>
+          <td>${eligBadge}</td>
+          <td><span class="badge badge-${job.status}">${job.status}</span></td>
+          <td>
+            <div style="display: flex; gap: 0.35rem;">
+              <button class="btn btn-primary btn-sm" onclick="quickApply(${job.id})">Apply</button>
+              <button class="btn btn-secondary btn-sm" onclick="viewJobAnalysis(${job.id}, '${escapeHtml(job.role_title)}')">AI Analysis</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteJob(${job.id})">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
   } catch (err) {
-    tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--accent-rose);">Failed to load job drives.</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--accent-rose);">Failed to load job drives.</td></tr>`;
   }
 }
 
@@ -454,7 +807,13 @@ async function loadProfileView() {
     document.getElementById("prof-usn").value = student.usn;
     document.getElementById("prof-name").value = student.name;
     document.getElementById("prof-email").value = student.email;
-    document.getElementById("prof-branch").value = student.branch;
+    if (document.getElementById("prof-phone")) {
+      document.getElementById("prof-phone").value = student.phone || "";
+    }
+    if (document.getElementById("prof-year-study")) {
+      document.getElementById("prof-year-study").value = student.year_of_study || "4th Year";
+    }
+    document.getElementById("prof-branch").value = student.department || student.branch;
     document.getElementById("prof-cgpa").value = student.cgpa;
     document.getElementById("prof-year").value = student.graduation_year;
     document.getElementById("prof-resume").value = student.resume_path || "";
@@ -526,7 +885,10 @@ function setupProfileSkillTags() {
           usn: document.getElementById("prof-usn").value.trim(),
           name: document.getElementById("prof-name").value.trim(),
           email: document.getElementById("prof-email").value.trim(),
+          phone: document.getElementById("prof-phone") ? document.getElementById("prof-phone").value.trim() : null,
           branch: document.getElementById("prof-branch").value,
+          department: document.getElementById("prof-branch").value,
+          year_of_study: document.getElementById("prof-year-study") ? document.getElementById("prof-year-study").value : "4th Year",
           cgpa: parseFloat(document.getElementById("prof-cgpa").value),
           graduation_year: parseInt(document.getElementById("prof-year").value),
           skills: state.profileSkills,
@@ -541,6 +903,11 @@ function setupProfileSkillTags() {
         showToast(`Profile for ${res.student.name} saved successfully!`, "success");
         await loadStudents();
         state.activeStudentId = res.student.id;
+        if (state.currentUser && state.currentUser.id === res.student.id) {
+          state.currentUser = res.student;
+          localStorage.setItem("placementpilot_user", JSON.stringify(res.student));
+          updateHeaderUserBadge();
+        }
         loadProfileView();
       } catch (err) {
         // Error already toasted by apiRequest
@@ -862,6 +1229,60 @@ function openApplyModal(jobId = null) {
     const studentSelect = document.getElementById("apply-student");
     if (studentSelect) studentSelect.value = state.activeStudentId;
   }
+
+  const sSel = document.getElementById("apply-student");
+  const jSel = document.getElementById("apply-job");
+  if (sSel && !sSel._hasEligListener) {
+    sSel.addEventListener("change", updateApplyEligibilityNotice);
+    sSel._hasEligListener = true;
+  }
+  if (jSel && !jSel._hasEligListener) {
+    jSel.addEventListener("change", updateApplyEligibilityNotice);
+    jSel._hasEligListener = true;
+  }
+  updateApplyEligibilityNotice();
+}
+
+function updateApplyEligibilityNotice() {
+  const studentSelect = document.getElementById("apply-student");
+  const jobSelect = document.getElementById("apply-job");
+  if (!studentSelect || !jobSelect) return;
+
+  const sId = parseInt(studentSelect.value);
+  const jId = parseInt(jobSelect.value);
+  const student = state.students.find(s => s.id === sId) || state.currentUser;
+  const job = state.jobs.find(j => j.id === jId);
+
+  let banner = document.getElementById("apply-eligibility-warning");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "apply-eligibility-warning";
+    banner.style.padding = "0.75rem";
+    banner.style.borderRadius = "var(--radius-sm)";
+    banner.style.fontSize = "0.85rem";
+    banner.style.marginBottom = "1rem";
+    banner.style.display = "none";
+    const form = document.getElementById("form-apply");
+    if (form) form.insertBefore(banner, form.firstChild);
+  }
+
+  if (student && job) {
+    const elig = evaluateEligibilityLocal(student, job);
+    banner.style.display = "block";
+    if (!elig.isEligible) {
+      banner.style.background = "rgba(239, 68, 68, 0.15)";
+      banner.style.border = "1px solid rgba(239, 68, 68, 0.4)";
+      banner.style.color = "#fca5a5";
+      banner.innerHTML = `<strong>⚠️ Ineligibility Warning:</strong> ${escapeHtml(elig.reasons.join(". "))}`;
+    } else {
+      banner.style.background = "rgba(16, 185, 129, 0.15)";
+      banner.style.border = "1px solid rgba(16, 185, 129, 0.4)";
+      banner.style.color = "#86efac";
+      banner.innerHTML = `<strong>✓ Eligible:</strong> Candidate meets department and CGPA criteria for this opening.`;
+    }
+  } else {
+    banner.style.display = "none";
+  }
 }
 
 function quickApply(jobId) {
@@ -1123,7 +1544,13 @@ function escapeHtml(str) {
 }
 
 function formatBranches(branches) {
-  if (!branches || branches.length === 0) return "All Branches";
-  return branches.join(", ");
+  if (!branches || branches.length === 0) {
+    return `<span class="dept-pill" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">All Departments</span>`;
+  }
+  const isAll = branches.some(b => ["ALL", "ANY", "ALL DEPARTMENTS", "ALL BRANCHES", "*"].includes(String(b).toUpperCase()));
+  if (isAll) {
+    return `<span class="dept-pill" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">All Departments</span>`;
+  }
+  return branches.map(b => `<span class="dept-pill">${escapeHtml(b)}</span>`).join(" ");
 }
 

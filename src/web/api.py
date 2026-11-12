@@ -4,7 +4,7 @@ Connects frontend interactions directly to existing repositories and domain serv
 """
 
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -12,6 +12,7 @@ from src.db.connection import get_db_connection
 from src.db.repositories import (
     ApplicationRepository,
     CompanyRepository,
+    DepartmentRepository,
     QuestionRepository,
     StudentRepository,
 )
@@ -36,18 +37,195 @@ def success_response(data: Any, status_code: int = 200) -> JSONResponse:
 
 
 # ==============================================================================
+# Authentication & Session Endpoints
+# ==============================================================================
+
+async def login_student(request: Request) -> JSONResponse:
+    """Authenticate a student by USN / Register Number or Email."""
+    try:
+        body = await request.json()
+    except Exception:
+        return error_response("Invalid JSON body.")
+
+    identifier = (body.get("identifier") or body.get("usn") or body.get("email") or "").strip()
+    if not identifier:
+        return error_response("Please enter your Register Number (USN) or College Email.")
+
+    with get_db_connection() as conn:
+        repo = StudentRepository(conn)
+        student = repo.authenticate(identifier)
+        if not student:
+            return error_response(
+                f"Candidate with identifier '{identifier}' not found. Please register first.",
+                404,
+            )
+
+        token = f"token_{student['id']}_{student['usn']}"
+        return success_response({
+            "message": "Login successful.",
+            "token": token,
+            "student": student,
+        })
+
+
+async def register_student(request: Request) -> JSONResponse:
+    """Register a new student from ANY college department."""
+    try:
+        body = await request.json()
+    except Exception:
+        return error_response("Invalid JSON body.")
+
+    name = (body.get("name") or "").strip()
+    usn = (body.get("usn") or "").strip()
+    email = (body.get("email") or "").strip()
+    phone = (body.get("phone") or "").strip()
+    department = (body.get("department") or body.get("branch") or "").strip()
+    year_of_study = (body.get("year_of_study") or "4th Year").strip()
+    cgpa = body.get("cgpa")
+    graduation_year = body.get("graduation_year", 2025)
+    skills = body.get("skills", [])
+    resume_path = body.get("resume_path")
+
+    if not name or not usn or not email or not department or cgpa is None:
+        return error_response("Missing required registration fields: name, usn, email, department, cgpa.")
+
+    try:
+        cgpa_val = float(cgpa)
+        if not (0.0 <= cgpa_val <= 10.0):
+            return error_response("CGPA must be between 0.0 and 10.0.")
+    except ValueError:
+        return error_response("Invalid CGPA value provided.")
+
+    with get_db_connection() as conn:
+        repo = StudentRepository(conn)
+
+        # Check existing USN
+        if repo.get_by_usn(usn):
+            return error_response(f"A student with Register Number '{usn}' is already registered.", 409)
+
+        # Check existing Email
+        if repo.get_by_email(email):
+            return error_response(f"A student with email '{email}' is already registered.", 409)
+
+        student = repo.create(
+            usn=usn,
+            name=name,
+            email=email,
+            phone=phone,
+            branch=department.upper(),
+            department=department,
+            year_of_study=year_of_study,
+            cgpa=cgpa_val,
+            graduation_year=int(graduation_year),
+            skills=skills,
+            resume_path=resume_path,
+        )
+
+        token = f"token_{student['id']}_{student['usn']}"
+        return success_response({
+            "message": "Student registration completed successfully.",
+            "token": token,
+            "student": student,
+        }, status_code=201)
+
+
+async def logout_student(request: Request) -> JSONResponse:
+    """Clear session and log out."""
+    return success_response({"message": "Logged out successfully."})
+
+
+async def get_current_student(request: Request) -> JSONResponse:
+    """Get currently authenticated student profile."""
+    student_id = request.query_params.get("student_id")
+    auth_header = request.headers.get("Authorization", "")
+    
+    sid: Optional[int] = None
+    if student_id:
+        try:
+            sid = int(student_id)
+        except ValueError:
+            pass
+    elif auth_header.startswith("Bearer token_"):
+        parts = auth_header.replace("Bearer token_", "").split("_")
+        if parts and parts[0].isdigit():
+            sid = int(parts[0])
+
+    if not sid:
+        return error_response("Unauthorized: Missing or invalid authentication token.", 401)
+
+    with get_db_connection() as conn:
+        repo = StudentRepository(conn)
+        student = repo.get_by_id(sid)
+        if not student:
+            return error_response("Student not found.", 404)
+        return success_response(student)
+
+
+# ==============================================================================
+# Academic Department Endpoints
+# ==============================================================================
+
+async def list_departments(request: Request) -> JSONResponse:
+    """List all registered academic departments."""
+    with get_db_connection() as conn:
+        repo = DepartmentRepository(conn)
+        departments = repo.list_all()
+        return success_response(departments)
+
+
+async def create_department(request: Request) -> JSONResponse:
+    """Allow admin to add a new academic department dynamically."""
+    try:
+        body = await request.json()
+    except Exception:
+        return error_response("Invalid JSON body.")
+
+    name = (body.get("name") or "").strip()
+    code = (body.get("code") or "").strip().upper()
+
+    if not name:
+        return error_response("Department name is required.")
+
+    with get_db_connection() as conn:
+        repo = DepartmentRepository(conn)
+        existing = repo.get_by_name_or_code(name)
+        if existing:
+            return success_response(existing)
+
+        dept = repo.create(name=name, code=code)
+        return success_response(dept, status_code=201)
+
+
+async def delete_department(request: Request) -> JSONResponse:
+    """Delete an academic department."""
+    dept_id = int(request.path_params["id"])
+    with get_db_connection() as conn:
+        repo = DepartmentRepository(conn)
+        deleted = repo.delete(dept_id)
+        if not deleted:
+            return error_response(f"Department {dept_id} not found.", 404)
+        return success_response({"message": f"Department {dept_id} deleted."})
+
+
+# ==============================================================================
 # Students Endpoints
 # ==============================================================================
 
 async def list_students(request: Request) -> JSONResponse:
     """List all students with optional filters."""
     branch = request.query_params.get("branch")
+    department = request.query_params.get("department")
     min_cgpa = request.query_params.get("min_cgpa")
     min_cgpa_val = float(min_cgpa) if min_cgpa else None
 
     with get_db_connection() as conn:
         repo = StudentRepository(conn)
-        students = repo.list_all(branch=branch, min_cgpa=min_cgpa_val, limit=100)
+        students = repo.list_all(
+            branch=branch,
+            department=department,
+            min_cgpa=min_cgpa_val,
+            limit=100,
+        )
         return success_response(students)
 
 
@@ -72,14 +250,17 @@ async def create_or_update_student(request: Request) -> JSONResponse:
     usn = body.get("usn")
     name = body.get("name")
     email = body.get("email")
+    phone = body.get("phone")
     branch = body.get("branch")
+    department = body.get("department") or branch
+    year_of_study = body.get("year_of_study")
     cgpa = body.get("cgpa")
     graduation_year = body.get("graduation_year", 2025)
     skills = body.get("skills", [])
     resume_path = body.get("resume_path")
 
-    if not usn or not name or not email or not branch or cgpa is None:
-        return error_response("Missing required fields: usn, name, email, branch, cgpa.")
+    if not usn or not name or not email or not (branch or department) or cgpa is None:
+        return error_response("Missing required fields: usn, name, email, department, cgpa.")
 
     try:
         cgpa_val = float(cgpa)
@@ -96,7 +277,10 @@ async def create_or_update_student(request: Request) -> JSONResponse:
                 student_id=existing["id"],
                 name=name.strip(),
                 email=email.strip(),
-                branch=branch.strip().upper(),
+                phone=phone.strip() if phone else None,
+                branch=branch.strip().upper() if branch else department.strip().upper(),
+                department=department.strip() if department else None,
+                year_of_study=str(year_of_study) if year_of_study else None,
                 cgpa=cgpa_val,
                 graduation_year=int(graduation_year),
                 skills=skills,
@@ -108,7 +292,10 @@ async def create_or_update_student(request: Request) -> JSONResponse:
                 usn=usn.strip(),
                 name=name.strip(),
                 email=email.strip(),
-                branch=branch.strip().upper(),
+                phone=phone.strip() if phone else None,
+                branch=branch.strip().upper() if branch else department.strip().upper(),
+                department=department.strip() if department else None,
+                year_of_study=str(year_of_study) if year_of_study else "4th Year",
                 cgpa=cgpa_val,
                 graduation_year=int(graduation_year),
                 skills=skills,

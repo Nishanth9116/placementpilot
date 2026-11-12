@@ -14,6 +14,53 @@ logger = logging.getLogger(__name__)
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
+def migrate_database(conn) -> None:
+    """Safely apply schema migrations to preserve existing database records."""
+    cursor = conn.cursor()
+
+    # 1. Ensure departments table exists
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS departments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            name TEXT UNIQUE NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # 2. Check and add columns to students table if not existing
+    cursor.execute("PRAGMA table_info(students);")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "phone" not in columns:
+        cursor.execute("ALTER TABLE students ADD COLUMN phone TEXT;")
+    if "department" not in columns:
+        cursor.execute("ALTER TABLE students ADD COLUMN department TEXT;")
+    if "year_of_study" not in columns:
+        cursor.execute("ALTER TABLE students ADD COLUMN year_of_study TEXT;")
+
+    # 3. Backfill department from branch if empty
+    cursor.execute("UPDATE students SET department = branch WHERE department IS NULL OR department = '';")
+
+    # 4. Seed default academic departments if empty
+    cursor.execute("SELECT COUNT(*) FROM departments;")
+    if cursor.fetchone()[0] == 0:
+        default_depts = [
+            ("CSE", "Computer Science"),
+            ("IT", "Information Technology"),
+            ("MCA", "Computer Applications"),
+            ("COMMERCE", "Commerce"),
+            ("BBA", "Business Administration"),
+            ("MATH", "Mathematics"),
+            ("PHYSICS", "Physics"),
+            ("CHEMISTRY", "Chemistry"),
+            ("OTHER", "Other"),
+        ]
+        cursor.executemany("INSERT OR IGNORE INTO departments (code, name) VALUES (?, ?);", default_depts)
+
+    conn.commit()
+
+
 def initialize_database(db_path: Optional[Path] = None) -> None:
     """Execute DDL statements from schema.sql to create all required tables and indexes."""
     target_path = db_path or settings.DATABASE_PATH
@@ -27,8 +74,9 @@ def initialize_database(db_path: Optional[Path] = None) -> None:
 
     with get_db_connection(target_path) as conn:
         conn.executescript(schema_sql)
+        migrate_database(conn)
 
-    logger.info("Database schema initialized successfully.")
+    logger.info("Database schema initialized and verified successfully.")
 
 
 def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = False) -> None:
@@ -57,7 +105,10 @@ def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = Fals
                     "1PI21CS001",
                     "Aarav Sharma",
                     "aarav.sharma@example.edu",
+                    "+91 98765 00001",
                     "CSE",
+                    "Computer Science",
+                    "4th Year",
                     8.90,
                     2025,
                     json.dumps(["Python", "C++", "Data Structures", "SQL", "Docker", "Algorithms"]),
@@ -67,7 +118,10 @@ def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = Fals
                     "1PI21EC045",
                     "Priya Patel",
                     "priya.patel@example.edu",
+                    "+91 98765 00002",
                     "ECE",
+                    "Electronics & Communication",
+                    "4th Year",
                     7.80,
                     2025,
                     json.dumps(["C++", "Embedded Systems", "Verilog", "Python", "Microcontrollers"]),
@@ -77,7 +131,10 @@ def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = Fals
                     "1PI21IS088",
                     "Rohan Verma",
                     "rohan.verma@example.edu",
+                    "+91 98765 00003",
                     "ISE",
+                    "Information Technology",
+                    "4th Year",
                     8.20,
                     2025,
                     json.dumps(["Java", "Spring Boot", "React", "PostgreSQL", "Docker"]),
@@ -87,7 +144,10 @@ def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = Fals
                     "1PI21CS042",
                     "Ananya Gupta",
                     "ananya.gupta@example.edu",
+                    "+91 98765 00004",
                     "CSE",
+                    "Computer Science",
+                    "4th Year",
                     9.45,
                     2025,
                     json.dumps(["Python", "Go", "Distributed Systems", "Kubernetes", "SQL", "Algorithms"]),
@@ -97,7 +157,10 @@ def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = Fals
                     "1PI21ME033",
                     "Vikram Singh",
                     "vikram.singh@example.edu",
+                    "+91 98765 00005",
                     "MECH",
+                    "Mechanical Engineering",
+                    "4th Year",
                     7.20,
                     2025,
                     json.dumps(["CAD", "SolidWorks", "Python", "MATLAB"]),
@@ -107,17 +170,75 @@ def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = Fals
                     "1PI21IS019",
                     "Sneha Kulkarni",
                     "sneha.kulkarni@example.edu",
+                    "+91 98765 00006",
                     "ISE",
+                    "Information Technology",
+                    "4th Year",
                     8.65,
                     2025,
                     json.dumps(["Python", "Machine Learning", "FastAPI", "SQL", "Pandas"]),
                     "/resumes/1PI21IS019_Sneha.pdf",
                 ),
+                (
+                    "1PI21CM012",
+                    "Rahul Nair",
+                    "rahul.nair@example.edu",
+                    "+91 98765 00007",
+                    "COMMERCE",
+                    "Commerce",
+                    "3rd Year",
+                    8.40,
+                    2025,
+                    json.dumps(["Financial Modeling", "Accounting", "Excel", "Auditing", "Taxation", "PowerBI"]),
+                    "/resumes/1PI21CM012_Rahul.pdf",
+                ),
+                (
+                    "1PI21BA024",
+                    "Divya Krishnan",
+                    "divya.krishnan@example.edu",
+                    "+91 98765 00008",
+                    "BBA",
+                    "Business Administration",
+                    "3rd Year",
+                    8.15,
+                    2025,
+                    json.dumps(["Business Strategy", "Marketing", "Operations", "Market Research", "Negotiation"]),
+                    "/resumes/1PI21BA024_Divya.pdf",
+                ),
+                (
+                    "1PI21MA009",
+                    "Siddharth Roy",
+                    "siddharth.roy@example.edu",
+                    "+91 98765 00009",
+                    "MATH",
+                    "Mathematics",
+                    "4th Year",
+                    9.10,
+                    2025,
+                    json.dumps(["Probability", "Statistics", "Linear Algebra", "Python", "Data Analysis", "Calculus"]),
+                    "/resumes/1PI21MA009_Siddharth.pdf",
+                ),
+                (
+                    "1PI21PH015",
+                    "Anjali Verma",
+                    "anjali.verma@example.edu",
+                    "+91 98765 00010",
+                    "PHYSICS",
+                    "Physics",
+                    "4th Year",
+                    8.50,
+                    2025,
+                    json.dumps(["Computational Physics", "Data Analysis", "Python", "MATLAB", "Research"]),
+                    "/resumes/1PI21PH015_Anjali.pdf",
+                ),
             ]
             cursor.executemany(
                 """
-                INSERT INTO students (usn, name, email, branch, cgpa, graduation_year, skills, resume_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                INSERT INTO students (
+                    usn, name, email, phone, branch, department, year_of_study,
+                    cgpa, graduation_year, skills, resume_path
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 sample_students,
             )
@@ -133,6 +254,8 @@ def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = Fals
                 ("Stripe", "https://stripe.com/jobs", "Fintech & Payments", "Financial infrastructure for the internet, powering millions of businesses."),
                 ("Databricks", "https://databricks.com/company/careers", "Data & AI", "The data and AI company, pioneering the lakehouse architecture."),
                 ("Oracle", "https://www.oracle.com/careers", "Enterprise Software", "Cloud applications and database platform services."),
+                ("Deloitte Consulting", "https://www2.deloitte.com/careers", "Management Consulting", "Global leader in professional consulting, strategy, and business operations."),
+                ("KPMG Advisory", "https://kpmg.com/careers", "Financial & Advisory", "Audit, tax, and risk advisory services across global corporate sectors."),
             ]
             cursor.executemany(
                 """
@@ -217,6 +340,30 @@ def seed_sample_data(db_path: Optional[Path] = None, clear_existing: bool = Fals
                     json.dumps(["CSE", "ISE", "ECE", "EEE"]),
                     json.dumps(["Java", "Linux", "Networking", "SQL"]),
                     "2026-11-25",
+                    "open",
+                ),
+                (
+                    7, # Deloitte Consulting (Open to ALL Departments)
+                    "Associate Business & Technology Analyst",
+                    "Drive cross-functional client operations, market analysis, process automation, and business intelligence.",
+                    14.5,
+                    "Bangalore / Mumbai / Gurgaon",
+                    6.5,
+                    json.dumps(["ALL"]), # All Departments Allowed!
+                    json.dumps(["Communication", "Problem Solving", "Excel", "Data Analysis", "SQL"]),
+                    "2026-12-28",
+                    "open",
+                ),
+                (
+                    8, # KPMG Advisory (Commerce, BBA, Math)
+                    "Financial & Risk Advisory Analyst",
+                    "Perform statutory risk assessment, financial data audit, regulatory reporting, and portfolio diagnostics.",
+                    11.0,
+                    "Mumbai / Bangalore",
+                    7.0,
+                    json.dumps(["Commerce", "Business Administration", "Mathematics"]),
+                    json.dumps(["Financial Analysis", "Accounting", "Excel", "Auditing", "Reporting"]),
+                    "2026-12-18",
                     "open",
                 ),
             ]

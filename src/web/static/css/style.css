@@ -610,3 +610,58 @@ dialog.custom-modal::backdrop {
   .nav-item { justify-content: center; padding: 0.75rem; }
 }
 
+/* Authentication & All-Department Features */
+.auth-tab-btn {
+  transition: var(--transition);
+  color: var(--text-muted);
+}
+.auth-tab-btn.active {
+  color: #60a5fa !important;
+  border-bottom: 2px solid var(--accent-blue) !important;
+}
+.quick-demo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.quick-demo-chip:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-blue);
+  color: #93c5fd;
+  transform: translateY(-1px);
+}
+.nav-logout:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+}
+.badge-eligible {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+.badge-ineligible {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.dept-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+
