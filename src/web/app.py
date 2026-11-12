@@ -1,6 +1,7 @@
 """Starlette application serving the PlacementPilot web dashboard and REST API."""
 
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -73,13 +74,30 @@ middleware = [
     )
 ]
 
-app = Starlette(routes=routes, middleware=middleware)
+@asynccontextmanager
+async def lifespan(app):
+    """Ensure database schema and sample data exist upon startup."""
+    try:
+        from src.db.init_db import initialize_database, seed_sample_data
+        initialize_database()
+        seed_sample_data()
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn.error").warning("Database startup initialization check: %s", e)
+    yield
 
 
-def run_server(host: str = "127.0.0.1", port: int = 8000) -> None:
+app = Starlette(routes=routes, middleware=middleware, lifespan=lifespan)
+
+
+def run_server(host: str = None, port: int = None) -> None:
     """Run the web server using uvicorn."""
     import uvicorn
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    if host is None:
+        host = os.getenv("HOST", "0.0.0.0")
+    if port is None:
+        port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("src.web.app:app", host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

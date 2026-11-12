@@ -217,3 +217,48 @@ git remote add origin https://github.com/<your-username>/PlacementPilot.git
 # 6. Push to GitHub
 git push -u origin main
 ```
+
+---
+
+## 🌐 Hosting & Cloud Deployment
+
+PlacementPilot can be deployed online in just a few minutes using your GitHub repository.
+
+### Option 1: Render.com (Recommended — Free & Easiest)
+1. Go to [Render.com](https://render.com) and sign in with GitHub.
+2. Click **New +** → **Web Service**.
+3. Select your repository: `Nishanth9116/placementpilot`.
+4. Configure the service settings:
+   - **Name**: `placementpilot`
+   - **Environment**: `Python 3`
+   - **Region**: Closest to you (e.g., Oregon, Frankfurt, Singapore)
+   - **Branch**: `main`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn src.web.app:app --host 0.0.0.0 --port $PORT`
+   - **Instance Type**: `Free`
+5. Click **Deploy Web Service**.
+6. Render will build and deploy your app, providing a live HTTPS link (e.g. `https://placementpilot.onrender.com`).
+
+---
+
+### Option 2: Railway.app (Persistent Storage Support)
+1. Go to [Railway.app](https://railway.app) and sign in with GitHub.
+2. Click **New Project** → **Deploy from GitHub repo**.
+3. Select `Nishanth9116/placementpilot`.
+4. Railway will automatically detect the Python environment and launch the dashboard.
+5. *(Optional)* Add a Persistent Volume mounted to `/app/data` to preserve database state across redeploys.
+
+---
+
+### Option 3: Docker / Self-Hosted VPS
+You can host PlacementPilot on any Linux VPS (DigitalOcean, AWS, Hetzner, Linode) using Docker:
+
+```bash
+# Clone the repository
+git clone https://github.com/Nishanth9116/placementpilot.git
+cd placementpilot
+
+# Build and start container with persistent SQLite volume
+docker compose up -d --build
+```
+Your dashboard will be accessible at `http://<your-server-ip>:8000`.

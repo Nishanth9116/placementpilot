@@ -1,0 +1,17 @@
+services:
+  placementpilot:
+    build: .
+    container_name: placementpilot_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - DATABASE_PATH=/app/data/placementpilot.db
+    volumes:
+      - placementpilot_data:/app/data
+
+volumes:
+  placementpilot_data:
+    driver: local
+
